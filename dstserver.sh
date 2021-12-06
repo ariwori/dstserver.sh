@@ -73,7 +73,8 @@ cluster_backup_dir="${dst_conf_basedir}/ClusterBackup"
 feed_back_link="https://blog.wqlin.com/archives/157.html"
 script_url='https://tools.wqlin.com/dst/dstserver.sh'
 my_api_link="https://tools.wqlin.com/dst/dst.php"
-parent_mod_dir="${dst_server_dir}/ugc_mods/downloadmod/Master/content/322330"
+ugc_directory="${dst_server_dir}/ugc_mods"
+parent_mod_dir="${ugc_directory}/content/322330"
 # 屏幕输出
 Green_font_prefix="\033[32m"
 Red_font_prefix="\033[31m"
@@ -253,7 +254,7 @@ Reboot_crash_shard() {
             cd "${dst_server_bin_dir}"
             for shard in ${need_reboot_arr[*]}; do
                 unset TMUX
-                tmux new-session -s DST_${shard} -d "${dst_bin_cmd} -persistent_storage_root ${dst_conf_basedir} -conf_dir ${dst_conf_dirname} -cluster ${cluster} -shard ${shard}"
+                tmux new-session -s DST_${shard} -d "${dst_bin_cmd} -ugc_directory ${ugc_directory} -persistent_storage_root ${dst_conf_basedir} -conf_dir ${dst_conf_dirname} -cluster ${cluster} -shard ${shard}"
             done
             cd
             rm "${ays_log_file}" >/dev/null 2>&1
@@ -430,12 +431,20 @@ MOD_manager() {
         read mc
         case "${mc}" in
         1)
+          flag=true
           Listallmod
-          Addmod
+          if [[ $flag == "true" ]]
+          then
+            Addmod
+          fi
           ;;
         2)
+          flag=true
           Listusedmod
-          Delmod
+          if [[ $flag == "true" ]]
+          then
+            Delmod
+          fi
           ;;
         3)
           Mod_Cfg
@@ -487,7 +496,7 @@ Install_mod_collection() {
     fi
     cp "$data_dir/modcollectionlist.txt" "${dst_server_dir}/mods/dedicated_server_mods_setup.lua"
     cd "${dst_server_bin_dir}" || exit 1
-    tmux new-session -s DST_MODUPDATE -d "${dst_bin_cmd} -persistent_storage_root ${dst_conf_basedir} -cluster downloadmod -shard Master"
+    tmux new-session -s DST_MODUPDATE -d "${dst_bin_cmd} -ugc_directory ${ugc_directory} -persistent_storage_root ${dst_conf_basedir} -cluster downloadmod -shard Master"
     sleep 3
     while (true); do
       if tmux has-session -t DST_MODUPDATE >/dev/null 2>&1; then
@@ -511,16 +520,22 @@ Mod_Cfg() {
     #clear
     Get_current_cluster
     echo -e "\e[92m【存档：${cluster}】已启用的MOD配置修改===============\e[0m"
+    flag=true
     Listusedmod
-    info "请从以上列表选择你要配置的MOD${Red_font_prefix}[编号]${Font_color_suffix},完毕请输数字 0 ！"
-    read modid
-    if [[ "${modid}" == "0" ]]; then
-      info "MOD配置完毕！"
-      break
+    if [[ $flag == "true" ]]
+    then
+      info "请从以上列表选择你要配置的MOD${Red_font_prefix}[编号]${Font_color_suffix},完毕请输数字 0 ！"
+      read modid
+      if [[ "${modid}" == "0" ]]; then
+        info "MOD配置完毕！"
+        break
+      else
+        Truemodid
+        Show_mod_cfg
+        Write_mod_cfg
+      fi
     else
-      Truemodid #moddir
-      Show_mod_cfg
-      Write_mod_cfg
+      break
     fi
   done
 }
@@ -667,9 +682,9 @@ Get_data_from_file() {
   fi
 }
 Get_installed_mod_version() {
-  if [ -f "${dst_server_dir}/mods/${moddir}/modinfo.lua" ]; then
+  if [ -f "${dst_server_dir}/mods/workshop-${moddir}/modinfo.lua" ]; then
     echo "fuc=\"getver\"" >"${data_dir}/modinfo.lua"
-    cat "${dst_server_dir}/mods/${moddir}/modinfo.lua" >>"${data_dir}/modinfo.lua"
+    cat "${dst_server_dir}/mods/workshop-${moddir}/modinfo.lua" >>"${data_dir}/modinfo.lua"
     cd "${data_dir}"
     result=$(lua modconf.lua)
     cd ${DST_HOME}
@@ -685,14 +700,14 @@ Get_installed_mod_version() {
   fi
 }
 update_mod_cfg() {
-  if [[ -f "${dst_server_dir}/mods/${moddir}/modinfo.lua" ]]; then
+  if [[ -f "${dst_server_dir}/mods/workshop-${moddir}/modinfo.lua" ]]; then
     cat > "${data_dir}/modinfo.lua" <<-EOF
 fuc = "createmodcfg"
 modid = "${moddir}"
 EOF
-    cat "${dst_server_dir}/mods/${moddir}/modinfo.lua" >> "${data_dir}/modinfo.lua"
-    if [[ -f "${dst_server_dir}/mods/${moddir}/modinfo_chs.lua" ]]; then
-      cat "${dst_server_dir}/mods/${moddir}/modinfo_chs.lua" >> "${data_dir}/modinfo.lua"
+    cat "${dst_server_dir}/mods/workshop-${moddir}/modinfo.lua" >> "${data_dir}/modinfo.lua"
+    if [[ -f "${dst_server_dir}/mods/workshop-${moddir}/modinfo_chs.lua" ]]; then
+      cat "${dst_server_dir}/mods/workshop-${moddir}/modinfo_chs.lua" >> "${data_dir}/modinfo.lua"
     fi
     cd "${data_dir}"
     lua modconf.lua >/dev/null 2>&1
@@ -701,7 +716,7 @@ EOF
 fuc = "createmodcfg"
 modid = "${moddir}"
 EOF
-    cat "${dst_server_dir}/mods/${moddir}/modinfo.lua" >> "${data_dir}/modinfo.lua"
+    cat "${dst_server_dir}/mods/workshop-${moddir}/modinfo.lua" >> "${data_dir}/modinfo.lua"
 
     lua modconf.lua >/dev/null 2>&1
     fi
@@ -733,13 +748,12 @@ EOF
 }
 MOD_conf() {
   if [[ "${fuc}" == "createmodcfg" ]]; then
-    if [[ -f "${dst_server_dir}/mods/${moddir}/modinfo.lua" ]]; then
-      cat "${dst_server_dir}/mods/${moddir}/modinfo.lua" >>"${data_dir}/modinfo.lua"
+    if [[ -f "${dst_server_dir}/mods/workshop-${moddir}/modinfo.lua" ]]; then
+      cat "${dst_server_dir}/mods/workshop-${moddir}/modinfo.lua" >>"${data_dir}/modinfo.lua"
     elif [[ -f "$parent_mod_dir/${moddir}/modinfo.lua" ]]; then
       cat "$parent_mod_dir/${moddir}/modinfo.lua" >>"${data_dir}/modinfo.lua"
     else
-      needdownloadid=$(echo "${moddir}" | tr -cd '[0-9]')
-      echo "ServerModSetup(\"${needdownloadid}\")" >"${dst_server_dir}/mods/dedicated_server_mods_setup.lua"
+      echo "ServerModSetup(\"${moddir}\")" >"${dst_server_dir}/mods/dedicated_server_mods_setup.lua"
       # 当输入多个MODID时，在第一次下载时全部添加下载
       for exmodid in ${inputarray[@]}; do
         if [ $exmodid -gt 100000 ]; then
@@ -748,7 +762,7 @@ MOD_conf() {
       done
       Download_MOD
     fi
-    if [[ -f "${dst_server_dir}/mods/${moddir}/modinfo.lua" ]]; then
+    if [[ -f "${dst_server_dir}/mods/workshop-${moddir}/modinfo.lua" ]]; then
       if [ ! -f "${mod_cfg_dir}/${moddir}.cfg" ]; then
         update_mod_cfg
       fi
@@ -766,8 +780,8 @@ fuc = "${fuc}"
 modid = "${moddir}"
 used = "${used}"
 EOF
-    if [[ -f "${dst_server_dir}/mods/${moddir}/modinfo.lua" ]]; then
-      cat "${dst_server_dir}/mods/${moddir}/modinfo.lua" >>"${data_dir}/modinfo.lua"
+    if [[ -f "${dst_server_dir}/mods/workshop-${moddir}/modinfo.lua" ]]; then
+      cat "${dst_server_dir}/mods/workshop-${moddir}/modinfo.lua" >>"${data_dir}/modinfo.lua"
     else
       moddir=$(echo "${moddir}" | tr -cd '[0-9]')
       if [[ -f "$parent_mod_dir/${moddir}/modinfo.lua" ]]; then
@@ -781,37 +795,37 @@ EOF
     cd ${DST_HOME}
   fi
 }
-collectionAllMOD(){
-  cur_parent_dir=""
-  copy=0
-  for moddir in $(ls -F ${dst_server_dir}/ugc_mods/**/**/content/322330); do
-    if [ $(echo $moddir | grep -c "ugc_mods") -gt 0 ]
-    then
-      if [ $(echo $moddir | grep -c "downloadmod") == 0 ]
-      then
-        cur_parent_dir=$(echo $moddir | cut -d ':' -f1)
-        copy=1
-      else
-        copy=0
-      fi
-    else
-      if [ $copy == 1 ]
-      then
-        moddir=$(echo $moddir | cut -d '/' -f1)
-        if [ ! -d $parent_mod_dir/$moddir ]
-        then
-          mkdir $parent_mod_dir/$moddir
-        fi
-        if [ -f $cur_parent_dir/$moddir/modinfo.lua ]
-        then
-          cp -rf $cur_parent_dir/$moddir/modinfo.lua $parent_mod_dir/$moddir/modinfo.lua
-        fi
-      fi
-    fi
-  done
-}
+# collectionAllMOD(){
+#   cur_parent_dir=""
+#   copy=0
+#   for moddir in $(ls -F ${dst_server_dir}/ugc_mods/**/**/content/322330); do
+#     if [ $(echo $moddir | grep -c "ugc_mods") -gt 0 ]
+#     then
+#       if [ $(echo $moddir | grep -c "downloadmod") == 0 ]
+#       then
+#         cur_parent_dir=$(echo $moddir | cut -d ':' -f1)
+#         copy=1
+#       else
+#         copy=0
+#       fi
+#     else
+#       if [ $copy == 1 ]
+#       then
+#         moddir=$(echo $moddir | cut -d '/' -f1)
+#         if [ ! -d $parent_mod_dir/$moddir ]
+#         then
+#           mkdir $parent_mod_dir/$moddir
+#         fi
+#         if [ -f $cur_parent_dir/$moddir/modinfo.lua ]
+#         then
+#           cp -rf $cur_parent_dir/$moddir/modinfo.lua $parent_mod_dir/$moddir/modinfo.lua
+#         fi
+#       fi
+#     fi
+#   done
+# }
 Listallmod() {
-  collectionAllMOD
+  # collectionAllMOD
   if [ ! -f "${data_dir}/mods_setup.lua" ]; then
     touch "${data_dir}/mods_setup.lua"
   fi
@@ -823,6 +837,10 @@ Listallmod() {
       used="true"
     else
       used="false"
+    fi
+    if [[ $(echo ${moddir} | grep -c '^workshop') -gt 0 ]]
+    then
+      moddir=$(echo ${moddir} | cut -d '-' -f2)
     fi
     if [[ "${moddir}" != "" ]]; then
       fuc="list"
@@ -845,20 +863,25 @@ Listallmod() {
     done
   if [ ! -s "${data_dir}/modconflist.lua" ]; then
     tip "没有安装任何MOD，请先安装MOD！！！"
+    flag=false
   else
     grep -n "^" "${data_dir}/modconflist.lua"
   fi
 }
 Listusedmod() {
-  collectionAllMOD
+  # collectionAllMOD
   rm -f "${data_dir}/modconflist.lua"
   touch "${data_dir}/modconflist.lua"
   Get_single_shard
   for moddir in $(grep "^  \[" "${dst_base_dir}/${cluster}/${shard}/modoverrides.lua" | cut -d '"' -f2); do
     used="false"
-    if [ ! -d ${dst_server_dir}/mods/${moddir} ]
+    # if [ ! -d ${dst_server_dir}/mods/workshop-${moddir} ]
+    # then
+    #   moddir=$(echo ${moddir} | tr -cd '[0-9]')
+    # fi
+    if [[ $(echo ${moddir} | grep -c '^workshop') -gt 0 ]]
     then
-      moddir=$(echo ${moddir} | tr -cd '[0-9]')
+      moddir=$(echo ${moddir} | cut -d '-' -f2)
     fi
     if [[ "${moddir}" != "" ]]; then
       fuc="list"
@@ -868,6 +891,7 @@ Listusedmod() {
   done
   if [ ! -s "${data_dir}/modconflist.lua" ]; then
     tip "没有启用任何MOD，请先启用MOD！！！"
+    flag=false
   else
     grep -n "^" "${data_dir}/modconflist.lua"
   fi
@@ -920,12 +944,12 @@ Truemodid() {
     # if [[ ! -d ${dst_server_dir}/mods/workshop-${modid} ]]; then
     #   moddir=$(echo ${modid} | tr -cd '[0-9]')
     # fi
-  else
-    if [[ -d ${dst_server_dir}/mods/workshop-${modid} ]]; then
-      moddir="workshop-${modid}"
-    else
-      moddir=${modid}
+    if [[ $(echo ${moddir} | grep -c '^workshop') -gt 0 ]]
+    then
+      moddir=$(echo ${moddir} | cut -d '-' -f2)
     fi
+  else
+    moddir=${modid}
   fi
   # echo $moddir
 }
@@ -1783,7 +1807,7 @@ Start_shard() {
   cd "${dst_server_bin_dir}"
   for shard in ${shardarray}; do
     unset TMUX
-    tmux new-session -s DST_${shard} -d "${dst_bin_cmd} -persistent_storage_root ${dst_conf_basedir} -conf_dir ${dst_conf_dirname} -cluster ${cluster} -shard ${shard}"
+    tmux new-session -s DST_${shard} -d "${dst_bin_cmd} -ugc_directory ${ugc_directory} -persistent_storage_root ${dst_conf_basedir} -conf_dir ${dst_conf_dirname} -cluster ${cluster} -shard ${shard}"
   done
 }
 Save_log() {
@@ -2895,7 +2919,7 @@ Download_MOD() {
     tmux kill-session -t DST_MODUPDATE
   fi
   cd "${dst_server_bin_dir}" || exit 1
-  tmux new-session -s DST_MODUPDATE -d "${dst_bin_cmd} -persistent_storage_root ${dst_conf_basedir} -conf_dir ${dst_conf_dirname} -cluster downloadmod -shard Master"
+  tmux new-session -s DST_MODUPDATE -d "${dst_bin_cmd} -ugc_directory ${ugc_directory} -persistent_storage_root ${dst_conf_basedir} -conf_dir ${dst_conf_dirname} -cluster downloadmod -shard Master"
   sleep 3
   exchangesetting downloadmod_timeouttime 3
   init_downloadmod_timeout_time=$(date +%s)
@@ -3217,7 +3241,7 @@ else
   exchangesetting "gamebit" "32"
 fi
 
-Update_script
+# Update_script
 Check_sys
 First_run_check
 check_tmux
