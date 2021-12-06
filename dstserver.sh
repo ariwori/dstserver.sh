@@ -57,7 +57,10 @@ dst_conf_dirname="DoNotStarveTogether"
 dst_conf_basedir="${DST_HOME}/Klei"
 dst_base_dir="${dst_conf_basedir}/${dst_conf_dirname}"
 dst_server_dir="${DST_HOME}/DSTServer"
+dst_server_bin_dir="${dst_server_dir}/bin"
+dst_server_bin64_dir="${dst_server_dir}/bin64"
 dst_bin_cmd="./dontstarve_dedicated_server_nullrenderer"
+dst_bin_cmd64="./dontstarve_dedicated_server_nullrenderer_x64"
 data_dir="${DST_HOME}/dstscript"
 dst_token_file="${data_dir}/clustertoken.txt"
 server_conf_file="${data_dir}/server.conf"
@@ -104,6 +107,8 @@ Menu() {
     echo -e "\e[92m[16]更新脚本             [17]删除Steam缓存(游戏更新失败修复使用)\e[0m"
     echo -e "\e[92m[18]强制关停所有进程     [19]游戏依赖检查并修复(卡正在开启测一下)\e[0m"
     echo -e "\e[92m[20]单独重启崩溃的世界(适用于单服务器超多层)      [21]清理备份文件\e[0m"
+    getsetting "gamebit"
+    echo -e "\e[92m[22]切换服务端程序(32位/64位)   当前服务端为 ${result} 位\e[0m"
     Simple_server_status
     echo -e "\e[33m====================================================================\e[0m"
     echo -e "\e[92m[退出或中断操作请直接按Ctrl+C]请输入命令代号：\e[0m\c"
@@ -199,6 +204,27 @@ Menu() {
       rm -rf $cluster_backup_dir/*
       info "所有备份已清理！"
       ;;
+    22)
+      getsetting "gamebit"
+      if [[ $result == "32" ]]
+      then
+        tochange="64"
+      else
+        tochange="32"
+      fi
+      echo -e "\e[92m是否切换服务端程序为 ${tochange} 位：1、是   2、否\e[0m\c"
+      read tc
+      if [[ $tc -eq 1 ]]
+      then
+        exchangesetting "gamebit" "${tochange}"
+        dst_server_bin_dir=$dst_server_bin64_dir
+        dst_bin_cmd=$dst_bin_cmd64
+        Fix_steamcmd
+        info "已切换，重启服务端后生效！"
+      else
+        info "取消切换！"
+      fi
+      ;;
     *)
       error "输入有误！！！"
       ;;
@@ -224,7 +250,7 @@ Reboot_crash_shard() {
                 fi
             done
             info "正在重启异常退出的世界 ..."
-            cd "${dst_server_dir}/bin"
+            cd "${dst_server_bin_dir}"
             for shard in ${need_reboot_arr[*]}; do
                 unset TMUX
                 tmux new-session -s DST_${shard} -d "${dst_bin_cmd} -persistent_storage_root ${dst_conf_basedir} -conf_dir ${dst_conf_dirname} -cluster ${cluster} -shard ${shard}"
@@ -460,7 +486,7 @@ Install_mod_collection() {
       tmux kill-session -t DST_MODUPDATE
     fi
     cp "$data_dir/modcollectionlist.txt" "${dst_server_dir}/mods/dedicated_server_mods_setup.lua"
-    cd "${dst_server_dir}/bin" || exit 1
+    cd "${dst_server_bin_dir}" || exit 1
     tmux new-session -s DST_MODUPDATE -d "${dst_bin_cmd} -persistent_storage_root ${dst_conf_basedir} -cluster downloadmod -shard Master"
     sleep 3
     while (true); do
@@ -1754,7 +1780,7 @@ Start_shard() {
   Setup_mod
   Backup_cluster
   Save_log
-  cd "${dst_server_dir}/bin"
+  cd "${dst_server_bin_dir}"
   for shard in ${shardarray}; do
     unset TMUX
     tmux new-session -s DST_${shard} -d "${dst_bin_cmd} -persistent_storage_root ${dst_conf_basedir} -conf_dir ${dst_conf_dirname} -cluster ${cluster} -shard ${shard}"
@@ -2771,18 +2797,39 @@ Install_Game() {
     beta_str="-beta $gamebeta "
   fi
   cd "${DST_HOME}/steamcmd" || exit 1
-  ./steamcmd.sh +@ShutdownOnFailedCommand 1 +login anonymous +force_install_dir "${dst_server_dir}" +app_update "343050" ${beta_str}validate +quit
+  ./steamcmd.sh +@ShutdownOnFailedCommand 1 +force_install_dir "${dst_server_dir}" +login anonymous +app_update "343050" ${beta_str}validate +quit
   cd ${HOME}
 }
 # 修复SteamCMD [S_API FAIL] SteamAPI_Init() failed;
 Fix_steamcmd() {
-  info "修复Steamcmd可能存在的依赖问题 ..."
-  mkdir -p "${DST_HOME}/.steam/sdk32"
-  cp -v "${DST_HOME}/steamcmd/linux32/steamclient.so" "${DST_HOME}/.steam/sdk32/steamclient.so"
   # fix lib for centos
-  if [[ "${release}" == "centos" ]] && [ ! -f "${dst_server_dir}/bin/lib32/libcurl-gnutls.so.4" ]; then
-    info "libcurl-gnutls.so.4 missing ... create a lib link."
-    ln -s "/usr/lib/libcurl.so.4" "${dst_server_dir}/bin/lib32/libcurl-gnutls.so.4"
+  if [[ "${release}" == "centos" ]]
+  then
+    getsetting "gamebit"
+    if [[ $result == "64" ]]
+    then
+      if [ ! -f "${DST_HOME}/.steam/sdk64/steamclient.so" ]
+      then
+        info "修复Steamcmd可能存在的依赖问题 ..."
+        mkdir -p "${DST_HOME}/.steam/sdk64"
+        cp -v "${DST_HOME}/steamcmd/linux64/steamclient.so" "${DST_HOME}/.steam/sdk64/steamclient.so"
+      fi
+      if [ ! -f "${dst_server_dir}/bin64/lib64/libcurl-gnutls.so.4" ]; then
+        info "libcurl-gnutls.so.4 missing ... create a lib link."
+        ln -s "/usr/lib64/libcurl.so.4" "${dst_server_dir}/bin64/lib64/libcurl-gnutls.so.4"
+      fi
+    else
+      if [ ! -f "${DST_HOME}/.steam/sdk32/steamclient.so" ]
+      then
+        info "修复Steamcmd可能存在的依赖问题 ..."
+        mkdir -p "${DST_HOME}/.steam/sdk32"
+        cp -v "${DST_HOME}/steamcmd/linux32/steamclient.so" "${DST_HOME}/.steam/sdk32/steamclient.so"
+      fi
+      if [ ! -f "${dst_server_dir}/bin/lib32/libcurl-gnutls.so.4" ]; then
+        info "libcurl-gnutls.so.4 missing ... create a lib link."
+        ln -s "/usr/lib/libcurl.so.4" "${dst_server_dir}/bin/lib32/libcurl-gnutls.so.4"
+      fi
+    fi
   fi
 }
 Status_keep() {
@@ -2847,7 +2894,7 @@ Download_MOD() {
   if tmux has-session -t DST_MODUPDATE >/dev/null 2>&1; then
     tmux kill-session -t DST_MODUPDATE
   fi
-  cd "${dst_server_dir}/bin" || exit 1
+  cd "${dst_server_bin_dir}" || exit 1
   tmux new-session -s DST_MODUPDATE -d "${dst_bin_cmd} -persistent_storage_root ${dst_conf_basedir} -conf_dir ${dst_conf_dirname} -cluster downloadmod -shard Master"
   sleep 3
   exchangesetting downloadmod_timeouttime 3
@@ -3160,6 +3207,16 @@ if [ ! -d $parent_mod_dir ]
 then
     mkdir -p $parent_mod_dir
 fi
+
+getsetting "gamebit"
+if [[ $result == "64" ]]
+then
+  dst_server_bin_dir=$dst_server_bin64_dir
+  dst_bin_cmd=$dst_bin_cmd64
+else
+  exchangesetting "gamebit" "32"
+fi
+
 Update_script
 Check_sys
 First_run_check
