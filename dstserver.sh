@@ -3241,7 +3241,7 @@ else
   exchangesetting "gamebit" "32"
 fi
 
-# Update_script
+Update_script
 Check_sys
 First_run_check
 check_tmux
