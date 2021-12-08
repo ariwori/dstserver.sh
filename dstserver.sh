@@ -263,7 +263,8 @@ Reboot_crash_shard() {
               shardnum=0
               for shard in ${need_reboot_arr[*]}; do
                 unset TMUX
-                tmux new-session -s DST_"${shard}"_log -d "bash ${HOME}/dstserver.sh ay $shard"
+                cd ${HOME}
+                tmux new-session -s DST_"${shard}"_log -d "./dstserver.sh ay $shard"
                 shardnum=$(($shardnum + 1))
               done
               ANALYSIS_SHARD=0
@@ -431,12 +432,8 @@ MOD_manager() {
         read mc
         case "${mc}" in
         1)
-          flag=true
           Listallmod
-          if [[ $flag == "true" ]]
-          then
-            Addmod
-          fi
+          Addmod
           ;;
         2)
           flag=true
@@ -862,8 +859,7 @@ Listallmod() {
 
     done
   if [ ! -s "${data_dir}/modconflist.lua" ]; then
-    tip "没有安装任何MOD，请先安装MOD！！！"
-    flag=false
+    tip "没有安装任何MOD"
   else
     grep -n "^" "${data_dir}/modconflist.lua"
   fi
@@ -1166,7 +1162,8 @@ Auto_update() {
   if tmux has-session -t DST_"${shard}" >/dev/null 2>&1; then
     tmux kill-session -t Auto_update >/dev/null 2>&1
     sleep 1
-    tmux new-session -s Auto_update -d "bash ${HOME}/dstserver.sh au"
+    cd ${HOME}
+    tmux new-session -s Auto_update -d "./dstserver.sh au"
     info "附加功能已开启！"
   else
     tip "${shard}世界未开启或已异常退出！无法启用附加功能！"
@@ -1180,9 +1177,10 @@ Show_players() {
       tmux attach-session -t Show_players
       sleep 1
     else
-      tmux new-session -s Show_players -d "bash ${HOME}/dstserver.sh sp"
+      cd ${HOME}
+      tmux new-session -s Show_players -d "./dstserver.sh sp"
       tmux split-window -t Show_players
-      tmux send-keys -t Show_players:0 "bash ${HOME}/dstserver.sh sa" C-m
+      tmux send-keys -t Show_players:0 "./dstserver.sh sa" C-m
       info "进程已开启。。。请再次执行命令进入!"
     fi
   else
@@ -1877,7 +1875,8 @@ Start_check() {
   shardnum=0
   for shard in $shardarray; do
     unset TMUX
-    tmux new-session -s DST_"${shard}"_log -d "bash ${HOME}/dstserver.sh ay $shard"
+    cd ${HOME}
+    tmux new-session -s DST_"${shard}"_log -d "./dstserver.sh ay $shard"
     shardnum=$(($shardnum + 1))
   done
   ANALYSIS_SHARD=0
