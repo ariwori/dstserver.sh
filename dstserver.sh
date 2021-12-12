@@ -27,31 +27,6 @@
 #　　　　　　　　　　┃┫┫　┃┫┫
 #　　　　　　　　　　┗┻┛　┗┻┛+ + + +
 #
-
-			# if STRINGS.UI.CUSTOMIZATIONSCREEN[string.upper(name)] then
-			# 	TextName = STRINGS.UI.CUSTOMIZATIONSCREEN[string.upper(name)]
-			# end
-			# local ns = name .. " " .. item.value .. " " .._ .. "_" .. group_name .. " " .. TextName
-			# local desc = group_data.desc
-			# if item.desc then
-			# 	desc = item.desc
-			# 	if type(desc) == 'function' then
-			# 		desc = desc()
-			# 	end
-			# end
-			# for dk, dv in pairs(desc) do
-			# 	ns = ns .. " " .. dv.data .. " " .. dv.text
-			# end
-			# if item.world then
-			# 	for wk, wv in pairs(item.world) do
-			# 		if wv == 'cave' then
-			# 			print(ns)
-			# 		end
-			# 	end
-			# else
-			# 	print(ns)
-			# end
-
 DST_HOME="${HOME}/DST"
 dst_conf_dirname="DoNotStarveTogether"
 dst_conf_basedir="${DST_HOME}/Klei"
@@ -59,8 +34,8 @@ dst_base_dir="${dst_conf_basedir}/${dst_conf_dirname}"
 dst_server_dir="${DST_HOME}/DSTServer"
 dst_server_bin_dir="${dst_server_dir}/bin"
 dst_server_bin64_dir="${dst_server_dir}/bin64"
-dst_bin_cmd="./dontstarve_dedicated_server_nullrenderer"
-dst_bin_cmd64="./dontstarve_dedicated_server_nullrenderer_x64"
+dst_bin_cmd="dontstarve_dedicated_server_nullrenderer"
+dst_bin_cmd64="dontstarve_dedicated_server_nullrenderer_x64"
 data_dir="${DST_HOME}/dstscript"
 dst_token_file="${data_dir}/clustertoken.txt"
 server_conf_file="${data_dir}/server.conf"
@@ -179,7 +154,7 @@ Menu() {
       fi
       ;;
     19)
-      ldd $dst_server_dir/bin/dontstarve_dedicated_server_nullrenderer >$data_dir/ldd.log
+      ldd $dst_server_bin_dir/$dst_bin_cmd >$data_dir/ldd.log
       bugstr=""
       while read line; do
         if [ $(echo $line | grep -c "=> not found") -gt 0 ]; then
@@ -254,7 +229,7 @@ Reboot_crash_shard() {
             cd "${dst_server_bin_dir}"
             for shard in ${need_reboot_arr[*]}; do
                 unset TMUX
-                tmux new-session -s DST_${shard} -d "${dst_bin_cmd} -ugc_directory ${ugc_directory} -persistent_storage_root ${dst_conf_basedir} -conf_dir ${dst_conf_dirname} -cluster ${cluster} -shard ${shard}"
+                tmux new-session -s DST_${shard} -d "./${dst_bin_cmd} -ugc_directory ${ugc_directory} -persistent_storage_root ${dst_conf_basedir} -conf_dir ${dst_conf_dirname} -cluster ${cluster} -shard ${shard}"
             done
             cd
             rm "${ays_log_file}" >/dev/null 2>&1
@@ -493,7 +468,7 @@ Install_mod_collection() {
     fi
     cp "$data_dir/modcollectionlist.txt" "${dst_server_dir}/mods/dedicated_server_mods_setup.lua"
     cd "${dst_server_bin_dir}" || exit 1
-    tmux new-session -s DST_MODUPDATE -d "${dst_bin_cmd} -ugc_directory ${ugc_directory} -persistent_storage_root ${dst_conf_basedir} -cluster downloadmod -shard Master"
+    tmux new-session -s DST_MODUPDATE -d "./${dst_bin_cmd} -ugc_directory ${ugc_directory} -persistent_storage_root ${dst_conf_basedir} -cluster downloadmod -shard Master"
     sleep 3
     while (true); do
       if tmux has-session -t DST_MODUPDATE >/dev/null 2>&1; then
@@ -535,6 +510,7 @@ Mod_Cfg() {
       break
     fi
   done
+  check_cluster_file "modoverrides.lua"
 }
 # 传入moddir
 Show_mod_cfg() {
@@ -914,6 +890,7 @@ Addmod() {
   #clear
   info "默认参数配置已写入配置文件，可手动修改，也可通过脚本修改："
   info "${dst_base_dir}/${cluster}/***/modoverrides.lua"
+  check_cluster_file "modoverrides.lua"
 }
 Addmodtoshard() {
   Get_shard_array
@@ -956,6 +933,7 @@ Addmodfunc() {
   Write_mod_cfg
   Addmodtoshard
   Removelastcomma
+  check_cluster_file "modoverrides.lua"
 }
 Delmodfromshard() {
   Get_shard_array
@@ -1006,6 +984,7 @@ Delmod() {
       done
     fi
   done
+  check_cluster_file "modoverrides.lua"
 }
 List_manager() {
   tip "添加的名单设置在重启后生效，且在每一个存档都会生效！"
@@ -1667,6 +1646,7 @@ Set_world() {
       Set_world_config
     fi
     Write_in ${shardname}
+    check_cluster_file "leveldataoverride.lua"
   fi
 }
 Set_world_config() {
@@ -1804,8 +1784,10 @@ Start_shard() {
   Save_log
   cd "${dst_server_bin_dir}"
   for shard in ${shardarray}; do
+    check_cluster_file "leveldataoverride.lua"
+    check_cluster_file "modoverrides.lua"
     unset TMUX
-    tmux new-session -s DST_${shard} -d "${dst_bin_cmd} -ugc_directory ${ugc_directory} -persistent_storage_root ${dst_conf_basedir} -conf_dir ${dst_conf_dirname} -cluster ${cluster} -shard ${shard}"
+    tmux new-session -s DST_${shard} -d "./${dst_bin_cmd} -ugc_directory ${ugc_directory} -persistent_storage_root ${dst_conf_basedir} -conf_dir ${dst_conf_dirname} -cluster ${cluster} -shard ${shard}"
   done
 }
 Save_log() {
@@ -2855,6 +2837,14 @@ Fix_steamcmd() {
     fi
   fi
 }
+check_cluster_file(){
+    file=${dst_base_dir}/${cluster}/${shard}/$1
+    # luac $file
+    if [[ $? -ne 0 ]]
+    then
+      tip "$file 文件存在问题！请自行检查"
+    fi
+}
 Status_keep() {
   Get_current_cluster
   Get_shard_array
@@ -2918,7 +2908,7 @@ Download_MOD() {
     tmux kill-session -t DST_MODUPDATE
   fi
   cd "${dst_server_bin_dir}" || exit 1
-  tmux new-session -s DST_MODUPDATE -d "${dst_bin_cmd} -ugc_directory ${ugc_directory} -persistent_storage_root ${dst_conf_basedir} -conf_dir ${dst_conf_dirname} -cluster downloadmod -shard Master"
+  tmux new-session -s DST_MODUPDATE -d "./${dst_bin_cmd} -ugc_directory ${ugc_directory} -persistent_storage_root ${dst_conf_basedir} -conf_dir ${dst_conf_dirname} -cluster downloadmod -shard Master"
   sleep 3
   exchangesetting downloadmod_timeouttime 3
   init_downloadmod_timeout_time=$(date +%s)
@@ -3230,7 +3220,10 @@ if [ ! -d $parent_mod_dir ]
 then
     mkdir -p $parent_mod_dir
 fi
-
+if [ ! -d $data_dir ]
+then
+    mkdir -p $data_dir
+fi
 getsetting "gamebit"
 if [[ $result == "64" ]]
 then
@@ -3240,7 +3233,7 @@ else
   exchangesetting "gamebit" "32"
 fi
 
-Update_script
+# Update_script
 Check_sys
 First_run_check
 check_tmux
