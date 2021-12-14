@@ -75,6 +75,9 @@ Menu() {
     echo -e "\e[33m作者：Ariwori(i@wqlin.com) 更新地址==>${feed_back_link}\e[0m"
     echo -e "\e[33m本脚本一切权利归作者所有。未经许可禁止使用本脚本进行任何的商业活动！\e[0m"
     echo -e "\e[31m游戏服务端安装目录：${dst_server_dir} [$gamebeta_str(Version: $(cat "${dst_server_dir}/version.txt"))]\e[0m"
+    echo -e "\e[31m旧版MOD安装目录：${dst_server_dir}/mods \e[0m"
+    echo -e "\e[31m新版MOD安装目录：${parent_mod_dir} \e[0m"
+    echo -e "\e[33m本脚本于2021年12月15日起停止功能更新！仅对重大bug进行修复！\e[0m"
     echo -e "\e[92m[ 1]启动服务器           [ 2]关闭服务器           [ 3]重启服务器\e[0m"
     echo -e "\e[92m[ 4]修改房间设置         [ 5]MOD管理及配置        [ 6]特殊名单管理\e[0m"
     echo -e "\e[92m[ 7]游戏服务端控制台     [ 8]附加功能设置         [ 9]重置脚本数据\e[0m"
@@ -3233,7 +3236,7 @@ else
   exchangesetting "gamebit" "32"
 fi
 
-# Update_script
+Update_script
 Check_sys
 First_run_check
 check_tmux
