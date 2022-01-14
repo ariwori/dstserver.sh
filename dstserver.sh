@@ -27,6 +27,33 @@
 #　　　　　　　　　　┃┫┫　┃┫┫
 #　　　　　　　　　　┗┻┛　┗┻┛+ + + +
 #
+
+# 这段是修改游戏本体获取脚本配套的世界设置，Klei更新的时候才用
+      # if STRINGS.UI.CUSTOMIZATIONSCREEN[string.upper(name)] then
+			# 	TextName = STRINGS.UI.CUSTOMIZATIONSCREEN[string.upper(name)]
+			# end
+			# local ns = name .. " " .. item.value .. " " .._ .. "_" .. group_name .. " " .. TextName
+			# local desc = group_data.desc
+			# if item.desc then
+			# 	desc = item.desc
+			# 	if type(desc) == 'function' then
+			# 		desc = desc()
+			# 	end
+			# end
+			# for dk, dv in pairs(desc) do
+			# 	ns = ns .. " " .. dv.data .. " " .. dv.text
+			# end
+			# if item.world then
+			# 	for wk, wv in pairs(item.world) do
+			# 		if wv == 'cave' then
+			# 			print(ns)
+			# 		end
+			# 	end
+			# else
+			# 	print(ns)
+			# end
+#
+
 DST_HOME="${HOME}/DST"
 dst_conf_dirname="DoNotStarveTogether"
 dst_conf_basedir="${DST_HOME}/Klei"
@@ -75,6 +102,7 @@ Menu() {
     echo -e "\e[33m作者：Ariwori(i@wqlin.com) 更新地址==>${feed_back_link}\e[0m"
     echo -e "\e[33m本脚本一切权利归作者所有。未经许可禁止使用本脚本进行任何的商业活动！\e[0m"
     echo -e "\e[31m游戏服务端安装目录：${dst_server_dir} [$gamebeta_str(Version: $(cat "${dst_server_dir}/version.txt"))]\e[0m"
+    echo -e "\e[31m游戏存档目录：${dst_base_dir} \e[0m"
     echo -e "\e[31m旧版MOD安装目录：${dst_server_dir}/mods \e[0m"
     echo -e "\e[31m新版MOD安装目录：${parent_mod_dir} \e[0m"
     echo -e "\e[33m本脚本于2021年12月15日起停止功能更新！仅对重大bug进行修复！\e[0m"
@@ -1217,10 +1245,10 @@ Run_server() {
     exchangesetting serveropen true
     Default_mod
     Set_list
+    Start_check
     Start_shard
     info "服务器开启中。。。请稍候。。。"
     sleep 5
-    Start_check
     Auto_update
   else
     error "存档【${cluster}】已被删除或损坏！服务器无法开启！"
@@ -1858,31 +1886,36 @@ Start_check() {
   rm "${ays_log_file}" >/dev/null 2>&1
   touch "${ays_log_file}"
   shardnum=0
+  log_files=""
   for shard in $shardarray; do
     unset TMUX
     cd ${HOME}
-    tmux new-session -s DST_"${shard}"_log -d "./dstserver.sh ay $shard"
-    shardnum=$(($shardnum + 1))
+    log_files=${dst_base_dir}/${cluster}/$shard/server_log.txt
+    break
+    # tmux new-session -s DST_"${shard}"_log -d "./dstserver.sh ay $shard"
+    # shardnum=$(($shardnum + 1))
   done
-  ANALYSIS_SHARD=0
-  any_log_index=1
-  unset any_old_line
-  while (true); do
-    if [ "$ANALYSIS_SHARD" -lt $shardnum ]; then
-      anyline=$(sed -n ${any_log_index}p ${ays_log_file})
-      if [[ "$anyline" != "" && "$anyline" != "$any_old_line" ]]; then
-        any_log_index=$(($any_log_index + 1))
-        any_old_line=$anyline
-        if [ $(echo "$anyline" | grep -c ANALYSISLOGDONE) -gt 0 ]; then
-          ANALYSIS_SHARD=$(($ANALYSIS_SHARD + 1))
-        else
-          info "$anyline"
-        fi
-      fi
-    else
-      break
-    fi
-  done
+  tail -f $log_files | grep --line-buffer -E 'PersistRootStorage|Starting Up|System Name|Machine Arch|Starve Together|: Mode:|Command Line Arguments|SteamGameServer_Init|OnLoadPermissionList|OnLoadUserIdList|Token retrieved from|LOADING LUA|loaded modindex|DownloadPublishedFile|OnDownloadPublishedFile|Loaded modoverrides.lua|modoverrides.lua enabling|Loading mod: |Error loading mod!|string "../mods|Registering Server mod namespace|Check for write access|Check for read access|Available disk space for save files|Disabling|successfully|Account Communication Success|from TokenPurpose|Starting Dedicated Server Game|
+Online Server Started on port|SUCCESS: Loaded modoverrides.lua|Loaded and applied level data override|Starting master server|Shard server started on port|Telling Client our new session identifier|Validating portal|Sim paused|Best lobby region|Registering master server|now connected|Will Not Start|LUA is now ready'
+  # ANALYSIS_SHARD=0
+  # any_log_index=1
+  # unset any_old_line
+  # while (true); do
+  #   if [ "$ANALYSIS_SHARD" -lt $shardnum ]; then
+  #     anyline=$(sed -n ${any_log_index}p ${ays_log_file})
+  #     if [[ "$anyline" != "" && "$anyline" != "$any_old_line" ]]; then
+  #       any_log_index=$(($any_log_index + 1))
+  #       any_old_line=$anyline
+  #       if [ $(echo "$anyline" | grep -c ANALYSISLOGDONE) -gt 0 ]; then
+  #         ANALYSIS_SHARD=$(($ANALYSIS_SHARD + 1))
+  #       else
+  #         info "$anyline"
+  #       fi
+  #     fi
+  #   else
+  #     break
+  #   fi
+  # done
 }
 printf_and_save_log() {
   printf "%-7s：%s\n" "$1" "$2" | tee -a $3
@@ -1893,6 +1926,8 @@ Analysis_log() {
   if [ -f "$log_file" ]; then
     RES="nodone"
     retrytime=0
+    mod_warn_1=0
+    mod_warn_2=0
     while [ $RES == "nodone" ]; do
       while read line; do
         line_0=$(echo $line | cut -d '@' -f1)
@@ -2507,6 +2542,8 @@ EOF
 1@.*LUA is now ready!.*@服务器开启成功！
 1@.*Sim paused.*@世界运行暂停。。。服务器开启成功！
 1@.*Registering master server.*@服务器开启成功！
+2@.*Error loading mod.*@MOD加载出错！
+2@.*Disabling workshop.*@MOD有问题被禁用！
 EOF
 
   cat >$data_dir/modconf.lua <<-EOF
